@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use rand::seq::IndexedRandom;
 
+use crate::attendant::{Facing, WalkTarget};
 use crate::layout::{self, BUSINESS_ROWS, ROWS, SEAT_COLUMNS, SPRITE_SCALE};
 
 const PASSENGER_SPRITES: [&str; 6] = [
@@ -66,12 +67,15 @@ fn spawn_cabin(mut commands: Commands, assets: Res<AssetServer>) {
     Name::new("Cabin"),
     Sprite::from_image(assets.load("plane_cabin.png")),
     Transform::from_xyz(0.0, 0.0, layout::BACKGROUND_Z),
+    Pickable::IGNORE,
   ));
   // The near wall is drawn on top of seats and passengers so they appear inside the cabin.
   commands.spawn((
     Name::new("Cabin front wall"),
     Sprite::from_image(assets.load("plane_cabin_front_layer.png")),
     Transform::from_xyz(0.0, 0.0, layout::FOREGROUND_Z),
+    // Lets clicks through to the seats it overlaps.
+    Pickable::IGNORE,
   ));
 }
 
@@ -99,6 +103,7 @@ fn spawn_seats(mut commands: Commands, assets: Res<AssetServer>) {
         FEET_ANCHOR,
         Transform::from_translation(layout::floor_to_world(along, across))
           .with_scale(Vec3::splat(SPRITE_SCALE)),
+        seat_target(row, column),
       ));
     }
   }
@@ -108,7 +113,7 @@ fn spawn_passengers(
   mut commands: Commands,
   assets: Res<AssetServer>,
   config: Res<CabinConfig>,
-  mut seats: Query<(Entity, &mut Seat, &Transform)>,
+  mut seats: Query<(Entity, &mut Seat, &Transform, &WalkTarget)>,
 ) {
   let mut rng = rand::rng();
   let sprites: Vec<Handle<Image>> = PASSENGER_SPRITES.iter().map(|path| assets.load(*path)).collect();
@@ -117,7 +122,7 @@ fn spawn_passengers(
   let occupied = (seats.len() as f32 * config.occupancy.clamp(0.0, 1.0)).round() as usize;
 
   for index in rand::seq::index::sample(&mut rng, seats.len(), occupied) {
-    let (seat_entity, seat, seat_transform) = &mut seats[index];
+    let (seat_entity, seat, seat_transform, seat_target) = &mut seats[index];
 
     // Slightly in front of the seat so the passenger is drawn over it.
     let mut transform = **seat_transform;
@@ -130,8 +135,16 @@ fn spawn_passengers(
         Sprite::from_image(sprites.choose(&mut rng).unwrap().clone()),
         FEET_ANCHOR,
         transform,
+        **seat_target,
       ))
       .id();
     seat.occupant = Some(passenger);
   }
+}
+
+/// Clicking a seat (or its passenger) sends the attendant to that row in the
+/// aisle, where she turns towards the seat.
+fn seat_target(row: usize, column: usize) -> WalkTarget {
+  let facing = if SEAT_COLUMNS[column] > 0.0 { Facing::Window } else { Facing::Near };
+  WalkTarget { spot: Vec2::new(layout::row_along(row), 0.0), facing: Some(facing) }
 }

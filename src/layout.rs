@@ -34,7 +34,7 @@ const ROW_SPACING: f32 = 40.0;
 pub const SEAT_COLUMNS: [f32; 4] = [-64.0, -36.0, 36.0, 64.0];
 
 /// Scale applied to seat and passenger sprites.
-pub const SPRITE_SCALE: f32 = 0.6;
+pub const SPRITE_SCALE: f32 = 0.8;
 
 /// Z layers. Objects on the floor get a z inside `FLOOR_Z` depending on their
 /// screen height, so things lower on screen are drawn in front.
@@ -57,7 +57,20 @@ pub fn pixel_to_world(px: Vec2, depth_y: f32) -> Vec3 {
   Vec3::new(px.x - CABIN_SIZE.x / 2.0, CABIN_SIZE.y / 2.0 - px.y, z)
 }
 
+/// Inverse of the floor projection: the floor coordinates `(along, across)`
+/// of a pixel in the background image.
+pub fn pixel_to_floor(px: Vec2) -> Vec2 {
+  // px - origin = along * (2, 1) + across * (2, -1)
+  let d = px - AISLE_ORIGIN_PX;
+  Vec2::new((d.x / 2.0 + d.y) / 2.0, (d.x / 2.0 - d.y) / 2.0)
+}
+
+/// Position of `row` along the aisle.
+pub fn row_along(row: usize) -> f32 {
+  FIRST_ROW_ALONG + row as f32 * ROW_SPACING
+}
+
 /// Floor position of the seat at `row` / `column`.
 pub fn seat_floor_position(row: usize, column: usize) -> (f32, f32) {
-  (FIRST_ROW_ALONG + row as f32 * ROW_SPACING, SEAT_COLUMNS[column])
+  (row_along(row), SEAT_COLUMNS[column])
 }

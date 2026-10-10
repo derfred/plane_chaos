@@ -1,3 +1,4 @@
+mod attendant;
 mod cabin;
 mod galley;
 mod layout;
@@ -5,6 +6,7 @@ mod layout;
 use bevy::camera::ScalingMode;
 use bevy::prelude::*;
 
+use attendant::AttendantPlugin;
 use cabin::{CabinConfig, CabinPlugin};
 use galley::GalleyPlugin;
 
@@ -22,7 +24,7 @@ fn main() {
     )
     .insert_resource(ClearColor(Color::srgb(0.53, 0.75, 0.92)))
     .insert_resource(CabinConfig { occupancy: 0.6 })
-    .add_plugins((CabinPlugin, GalleyPlugin))
+    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin))
     .add_systems(Startup, spawn_camera)
     .run();
 }
