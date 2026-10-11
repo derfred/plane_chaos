@@ -2,8 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::attendant::{Facing, WalkTarget};
-use crate::layout;
+use crate::layout::{self, Facing, WalkTarget};
 
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Appliance {

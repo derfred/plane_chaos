@@ -4,8 +4,7 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use rand::seq::IndexedRandom;
 
-use crate::attendant::{Facing, WalkTarget};
-use crate::layout::{self, BUSINESS_ROWS, ROWS, SEAT_COLUMNS, SPRITE_SCALE};
+use crate::layout::{self, BUSINESS_ROWS, ROWS, SEAT_COLUMNS, SPRITE_SCALE, Facing, WalkTarget};
 
 const PASSENGER_SPRITES: [&str; 6] = [
   "passenger_bearded.png",
@@ -81,7 +80,7 @@ fn spawn_cabin(mut commands: Commands, assets: Res<AssetServer>) {
 
 fn spawn_seats(mut commands: Commands, assets: Res<AssetServer>) {
   let blue = assets.load("seat_blue.png");
-  let red = assets.load("seat_red.png");
+  let red  = assets.load("seat_red.png");
 
   for row in 0..ROWS {
     let class = if row >= ROWS - BUSINESS_ROWS {

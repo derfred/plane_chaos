@@ -76,3 +76,39 @@ pub fn row_along(row: usize) -> f32 {
 pub fn seat_floor_position(row: usize, column: usize) -> (f32, f32) {
   (row_along(row), SEAT_COLUMNS[column])
 }
+
+/// Floor spot the attendant walks to when the entity is clicked.
+// Sprite picking only considers sprites that have a `Pickable` component.
+#[derive(Component, Clone, Copy)]
+#[require(Pickable)]
+pub struct WalkTarget {
+  /// Floor position as `(along, across)`.
+  pub spot: Vec2,
+  /// Direction to face once arrived; `None` keeps the walking direction.
+  pub facing: Option<Facing>,
+}
+
+/// Which way the attendant looks, in floor directions.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Facing {
+  /// Towards the front of the plane (+along).
+  Front,
+  /// Towards the back of the plane (-along).
+  Back,
+  /// Towards the window wall (+across).
+  Window,
+  /// Towards the near side, facing the camera (-across).
+  Near,
+}
+
+impl Facing {
+  pub fn of_movement(delta: Vec2) -> Self {
+    if delta.x.abs() >= delta.y.abs() {
+      if delta.x >= 0.0 { Facing::Front } else { Facing::Back }
+    } else if delta.y >= 0.0 {
+      Facing::Window
+    } else {
+      Facing::Near
+    }
+  }
+}

@@ -7,7 +7,7 @@ use bevy::picking::pointer::PointerButton;
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
-use crate::layout::{self, SPRITE_SCALE};
+use crate::layout::{self, SPRITE_SCALE, Facing, WalkTarget};
 
 /// Walking speed in floor units per second.
 const SPEED: f32 = 90.0;
@@ -22,42 +22,6 @@ const START: Vec2 = Vec2::new(-20.0, 0.0);
 /// Feet of the attendant sprites, relative to the sprite centre. The figure is
 /// not centred horizontally in the image, so this is mirrored when flipping.
 const FEET: Vec2 = Vec2::new(0.11, -0.44);
-
-/// Floor spot the attendant walks to when the entity is clicked.
-// Sprite picking only considers sprites that have a `Pickable` component.
-#[derive(Component, Clone, Copy)]
-#[require(Pickable)]
-pub struct WalkTarget {
-  /// Floor position as `(along, across)`.
-  pub spot: Vec2,
-  /// Direction to face once arrived; `None` keeps the walking direction.
-  pub facing: Option<Facing>,
-}
-
-/// Which way the attendant looks, in floor directions.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Facing {
-  /// Towards the front of the plane (+along).
-  Front,
-  /// Towards the back of the plane (-along).
-  Back,
-  /// Towards the window wall (+across).
-  Window,
-  /// Towards the near side, facing the camera (-across).
-  Near,
-}
-
-impl Facing {
-  fn of_movement(delta: Vec2) -> Self {
-    if delta.x.abs() >= delta.y.abs() {
-      if delta.x >= 0.0 { Facing::Front } else { Facing::Back }
-    } else if delta.y >= 0.0 {
-      Facing::Window
-    } else {
-      Facing::Near
-    }
-  }
-}
 
 #[derive(Component)]
 pub struct Attendant {
