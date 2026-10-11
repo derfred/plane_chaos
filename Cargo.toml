@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 bevy = "0.20.0"
 rand = "0.10"
+strum = { version = "0.28", features = ["derive"] }
