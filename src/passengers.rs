@@ -1,4 +1,4 @@
-use rand::{RngExt, seq::IndexedRandom};
+use rand::{RngExt, seq::{IndexedRandom, IteratorRandom}};
 use strum::{EnumIter, IntoEnumIterator};
 use std::time::Duration;
 
@@ -28,7 +28,7 @@ pub enum Item { Coffee, ColdDrink, HotMeal, Sandwich }
 
 impl Item {
   fn random<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
-    *Item::iter().collect::<Vec<_>>().choose(rng).unwrap()
+    Item::iter().choose(rng).unwrap()
   }
 }
 
@@ -48,9 +48,14 @@ impl Desire {
   }
 }
 
-#[derive(Component, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Component, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, EnumIter)]
 #[component(immutable)]
-pub enum Mood { Happy, #[default] Neutral, Unhappy, Furious }
+pub enum Mood {
+  Furious,
+  Unhappy,
+  #[default] Neutral,
+  Happy,
+}
 
 impl Mood {
   /// One step down; `Furious` stays `Furious`.
@@ -85,7 +90,9 @@ impl Plugin for PassengersPlugin {
   fn build(&self, app: &mut App) {
     app
       .add_systems(Startup, spawn_passengers.after(SpawnCabin))
-      .add_systems(Update, tick_patience);
+      .add_systems(Update, tick_patience)
+      .add_observer(improve_mood)
+      .add_observer(worsen_mood);
   }
 }
 
@@ -132,15 +139,25 @@ fn spawn_passengers(
 fn tick_patience(
   mut commands: Commands,
   time: Res<Time>,
-  mut query: Query<(Entity, &mut Desire, &Mood)>,
+  mut query: Query<(Entity, &mut Desire)>,
 ) {
-  for (entity, mut desire, &mood) in query.iter_mut() {
+  for (entity, mut desire) in query.iter_mut() {
     desire.patience.tick(time.delta());
     if desire.patience.just_finished() {
       commands.trigger(DesireExpired { entity, item: desire.item });
-      commands.entity(entity)
-        .insert(mood.worse())
-        .remove::<Desire>();
+      commands.entity(entity).remove::<Desire>();
     }
+  }
+}
+
+fn improve_mood(satisfied: On<DesireSatisfied>, mut commands: Commands, moods: Query<&Mood>) {
+  if let Ok(&mood) = moods.get(satisfied.entity) {
+    commands.entity(satisfied.entity).insert(mood.better());
+  }
+}
+
+fn worsen_mood(expired: On<DesireExpired>, mut commands: Commands, moods: Query<&Mood>) {
+  if let Ok(&mood) = moods.get(expired.entity) {
+    commands.entity(expired.entity).insert(mood.worse());
   }
 }

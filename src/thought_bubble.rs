@@ -91,7 +91,6 @@ enum MoodPhase { Waiting, Showing }
 #[derive(Component)]
 struct Delay(Timer);
 
-/// The ring drawn around a bubble, stored on the bubble sprite entity.
 #[derive(Component)]
 struct TimerRing;
 
@@ -106,7 +105,7 @@ fn desire_image(item: Item) -> &'static str {
   }
 }
 
-fn mood_image(mood: Mood) -> &'static str {
+pub fn mood_image(mood: Mood) -> &'static str {
   match mood {
     Mood::Happy => "icon_happy.png",
     Mood::Neutral => "icon_neutral.png",
@@ -144,29 +143,44 @@ fn show_bubble(
     return;
   };
 
+  spawn_bubble(&mut commands, &assets, BubbleKind::Desire, insert.entity, transform, desire_image(desire.item))
+    .with_child((
+      Name::new("Timer ring"),
+      TimerRing,
+      Mesh2d(mesh.0.clone()),
+      MeshMaterial2d(materials.add(TimerRingMaterial::new(desire.fraction_remaining()))),
+      Transform::from_translation(RING_CENTER.extend(0.001)),
+    ));
+}
+
+/// Spawns a bubble of `kind` above the head of `passenger`, showing `icon`.
+fn spawn_bubble<'a>(
+  commands: &'a mut Commands,
+  assets: &AssetServer,
+  kind: BubbleKind,
+  passenger: Entity,
+  passenger_transform: &Transform,
+  icon: &'static str,
+) -> EntityCommands<'a> {
   // The bubble is a child, so it inherits the passenger's position and scale.
-  let parent_scale = transform.scale;
+  let parent_scale = passenger_transform.scale;
   let z = (layout::BUBBLE_Z - layout::FLOOR_Z.start) / parent_scale.z;
 
-  commands.spawn((
-    Name::new("Desire bubble"),
+  let mut bubble = commands.spawn((
+    Name::new(format!("{kind:?} bubble")),
     Sprite::from_image(assets.load(BUBBLE_BACKGROUND)),
     TAIL_ANCHOR,
     Transform::from_translation(HEAD_OFFSET.extend(z))
       .with_scale(Vec3::splat(BUBBLE_SCALE) / parent_scale),
-    BubbleKind::Desire,
-    ChildOf(insert.entity),
-  )).with_child((
-    Name::new("Desire Icon"),
-    Sprite::from_image(assets.load(desire_image(desire.item))),
-    Transform::from_translation(ICON_OFFSET.extend(0.001)),
-  )).with_child((
-    Name::new("Timer ring"),
-    TimerRing,
-    Mesh2d(mesh.0.clone()),
-    MeshMaterial2d(materials.add(TimerRingMaterial::new(desire.fraction_remaining()))),
-    Transform::from_translation(RING_CENTER.extend(0.001)),
+    kind,
+    ChildOf(passenger),
   ));
+  bubble.with_child((
+    Name::new(format!("{kind:?} icon")),
+    Sprite::from_image(assets.load(icon)),
+    Transform::from_translation(ICON_OFFSET.extend(0.001)),
+  ));
+  bubble
 }
 
 fn remove_bubble(
@@ -207,30 +221,16 @@ fn update_rings(
 fn mood_change(
   mut commands: Commands,
   assets: Res<AssetServer>,
-  query: Query<(Entity, &Transform, &Mood), Changed<Mood>>,
+  query: Query<(Entity, &Transform, Ref<Mood>), Changed<Mood>>,
 ) {
-
   for (entity, transform, mood) in query {
-    if mood != &Mood::Neutral {
-      let parent_scale = transform.scale;
-      let z = (layout::BUBBLE_Z - layout::FLOOR_Z.start) / parent_scale.z;
-
-      commands.spawn((
-        Name::new("Mood bubble"),
-        Sprite::from_image(assets.load(BUBBLE_BACKGROUND)),
-        TAIL_ANCHOR,
-        Transform::from_translation(HEAD_OFFSET.extend(z))
-          .with_scale(Vec3::splat(BUBBLE_SCALE) / parent_scale),
-        BubbleKind::Mood,
-        Visibility::Hidden,
-        MoodPhase::Waiting,
-        Delay(Timer::from_seconds(SHOW_DELAY, TimerMode::Once)),
-        ChildOf(entity),
-      )).with_child((
-        Name::new("Mood Icon"),
-        Sprite::from_image(assets.load(mood_image(*mood))),
-        Transform::from_translation(ICON_OFFSET.extend(0.001)),
-      ));
+    if !mood.is_added() {
+      spawn_bubble(&mut commands, &assets, BubbleKind::Mood, entity, transform, mood_image(*mood))
+        .insert((
+          Visibility::Hidden,
+          MoodPhase::Waiting,
+          Delay(Timer::from_seconds(SHOW_DELAY, TimerMode::Once)),
+        ));
     }
   }
 }
