@@ -39,17 +39,21 @@ pub enum SeatClass {
 
 #[derive(Component)]
 pub struct Seat {
-  pub row: usize,
-  pub column: usize,
+  row: usize,
+  column: usize,
   pub class: SeatClass,
-  /// The passenger currently sitting in this seat.
-  pub occupant: Option<Entity>,
 }
 
 #[derive(Component)]
-pub struct Passenger {
-  pub seat: Option<Entity>,
-}
+pub struct Passenger;
+
+#[derive(Component)]
+#[relationship(relationship_target = Occupant)]
+pub struct SeatedIn(pub Entity);
+
+#[derive(Component, Deref)]
+#[relationship_target(relationship = SeatedIn)]
+pub struct Occupant(Entity);
 
 pub struct CabinPlugin;
 
@@ -97,7 +101,7 @@ fn spawn_seats(mut commands: Commands, assets: Res<AssetServer>) {
       let (along, across) = layout::seat_floor_position(row, column);
       commands.spawn((
         Name::new(format!("Seat {}{}", row + 1, (b'A' + column as u8) as char)),
-        Seat { row, column, class, occupant: None },
+        Seat { row, column, class },
         Sprite::from_image(image.clone()),
         FEET_ANCHOR,
         Transform::from_translation(layout::floor_to_world(along, across))
@@ -112,32 +116,30 @@ fn spawn_passengers(
   mut commands: Commands,
   assets: Res<AssetServer>,
   config: Res<CabinConfig>,
-  mut seats: Query<(Entity, &mut Seat, &Transform, &WalkTarget)>,
+  seats: Query<(Entity, &Transform, &WalkTarget), With<Seat>>,
 ) {
   let mut rng = rand::rng();
   let sprites: Vec<Handle<Image>> = PASSENGER_SPRITES.iter().map(|path| assets.load(*path)).collect();
 
-  let mut seats: Vec<_> = seats.iter_mut().collect();
+  let seats: Vec<_> = seats.iter().collect();
   let occupied = (seats.len() as f32 * config.occupancy.clamp(0.0, 1.0)).round() as usize;
 
   for index in rand::seq::index::sample(&mut rng, seats.len(), occupied) {
-    let (seat_entity, seat, seat_transform, seat_target) = &mut seats[index];
+    let (seat_entity, seat_transform, seat_target) = seats[index];
 
     // Slightly in front of the seat so the passenger is drawn over it.
-    let mut transform = **seat_transform;
+    let mut transform = *seat_transform;
     transform.translation.z += 0.0001;
 
-    let passenger = commands
-      .spawn((
-        Name::new("Passenger"),
-        Passenger { seat: Some(*seat_entity) },
-        Sprite::from_image(sprites.choose(&mut rng).unwrap().clone()),
-        FEET_ANCHOR,
-        transform,
-        **seat_target,
-      ))
-      .id();
-    seat.occupant = Some(passenger);
+    commands.spawn((
+      Name::new("Passenger"),
+      Passenger,
+      SeatedIn(seat_entity),
+      Sprite::from_image(sprites.choose(&mut rng).unwrap().clone()),
+      FEET_ANCHOR,
+      transform,
+      *seat_target,
+    ));
   }
 }
 
