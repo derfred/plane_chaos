@@ -41,6 +41,8 @@ pub const SPRITE_SCALE: f32 = 0.8;
 pub const BACKGROUND_Z: f32 = 0.0;
 pub const FLOOR_Z: std::ops::Range<f32> = 1.0..2.0;
 pub const FOREGROUND_Z: f32 = 10.0;
+/// Thought bubbles float above everything, keeping the floor depth order among themselves.
+pub const BUBBLE_Z: f32 = 20.0;
 
 /// Converts floor coordinates to a world position (including depth).
 pub fn floor_to_world(along: f32, across: f32) -> Vec3 {
