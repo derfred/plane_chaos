@@ -9,6 +9,7 @@
 //! These are then projected onto the background image and converted to world space.
 
 use bevy::prelude::*;
+use bevy::sprite::Anchor;
 
 /// Size of `plane_cabin.png` in pixels. The world is laid out so that one world
 /// unit equals one background pixel and the background is centred at the origin.
@@ -32,6 +33,9 @@ const FIRST_ROW_ALONG: f32 = 36.5;
 const ROW_SPACING: f32 = 40.0;
 /// Seat columns as offsets across the aisle; negative is the side nearer the camera.
 pub const SEAT_COLUMNS: [f32; 4] = [-64.0, -36.0, 36.0, 64.0];
+
+/// Point of the seat/passenger sprite that touches the floor (relative to the sprite centre).
+pub const FEET_ANCHOR: Anchor = Anchor(Vec2::new(0.0, -0.42));
 
 /// Scale applied to seat and passenger sprites.
 pub const SPRITE_SCALE: f32 = 0.8;

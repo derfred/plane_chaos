@@ -8,7 +8,7 @@ use rand::RngExt;
 use rand::seq::{IndexedRandom, IteratorRandom};
 
 use crate::bubble_timer::BubbleTimer;
-use crate::cabin::Passenger;
+use crate::passengers::Passenger;
 use crate::layout;
 
 /// Number of passengers that get a random bubble when the game starts.
@@ -19,7 +19,7 @@ const BUBBLE_SCALE: f32 = 0.6;
 
 /// Where the bubble's tail points to, in passenger sprite pixels relative to
 /// the passenger's feet: just above the top right of the head.
-const HEAD_OFFSET: Vec2 = Vec2::new(11.0, 185.0);
+const HEAD_OFFSET: Vec2 = Vec2::new(11.0, 165.0);
 
 /// Tip of the bubble's tail, relative to the bubble sprite centre.
 const TAIL_ANCHOR: Anchor = Anchor(Vec2::new(-0.085, -0.5));

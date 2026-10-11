@@ -1,5 +1,6 @@
 mod attendant;
 mod bubble;
+mod passengers;
 mod bubble_timer;
 mod cabin;
 mod galley;
@@ -13,6 +14,7 @@ use bubble::BubblePlugin;
 use bubble_timer::BubbleTimerPlugin;
 use cabin::{CabinConfig, CabinPlugin};
 use galley::GalleyPlugin;
+use passengers::PassengersPlugin;
 
 fn main() {
   App::new()
@@ -28,7 +30,7 @@ fn main() {
     )
     .insert_resource(ClearColor(Color::srgb(0.53, 0.75, 0.92)))
     .insert_resource(CabinConfig { occupancy: 0.6 })
-    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin, BubblePlugin, BubbleTimerPlugin))
+    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin, PassengersPlugin, BubblePlugin, BubbleTimerPlugin))
     .add_systems(Startup, spawn_camera)
     .run();
 }
