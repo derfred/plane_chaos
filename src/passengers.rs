@@ -5,7 +5,7 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use crate::layout::{FEET_ANCHOR, WalkTarget};
-use crate::cabin::{CabinConfig, Seat, SeatedIn, SpawnCabin};
+use crate::cabin::{CabinConfig, Seat, SeatClass, SeatedIn, SpawnCabin};
 
 const PASSENGER_SPRITES: [&str; 6] = [
   "passenger_bearded.png",
@@ -16,12 +16,45 @@ const PASSENGER_SPRITES: [&str; 6] = [
   "passenger_woman_bun.png",
 ];
 
-/// Number of passengers that get a random bubble when the game starts.
-const INITIAL_BUBBLES: usize = 6;
+const BUSINESS_IMPATIENCE_FACTOR: f32 = 0.75;
+const MAX_DESIRE_RESET: f32 = 30.0;
+const MIN_DESIRE_RESET: f32 = 10.0;
+
+/// Most desires active across the cabin at the same time.
+const MAX_ACTIVE_DESIRES: usize = 6;
+/// Seconds between two desires handed out by the [`DesireDirector`].
+const MIN_DESIRE_INTERVAL: f32 = 4.0;
+const MAX_DESIRE_INTERVAL: f32 = 8.0;
 
 #[derive(Component)]
 #[require(Mood)]
-pub struct Passenger;
+pub struct Passenger {
+  /// Runs down while the passenger has no desire; until it is finished the
+  /// director passes them over.
+  desire_cooldown: Timer,
+}
+
+fn desire_cooldown<R: rand::Rng + ?Sized>(rng: &mut R) -> Timer {
+  Timer::from_seconds(rng.random_range(MIN_DESIRE_RESET..MAX_DESIRE_RESET), TimerMode::Once)
+}
+
+/// Paces desires across the whole cabin: once per interval it hands a desire
+/// to a random rested passenger, as long as fewer than `max_active` are active.
+#[derive(Resource)]
+pub struct DesireDirector {
+  next: Timer,
+  max_active: usize,
+}
+
+impl Default for DesireDirector {
+  fn default() -> Self {
+    Self { next: desire_interval(&mut rand::rng()), max_active: MAX_ACTIVE_DESIRES }
+  }
+}
+
+fn desire_interval<R: rand::Rng + ?Sized>(rng: &mut R) -> Timer {
+  Timer::from_seconds(rng.random_range(MIN_DESIRE_INTERVAL..MAX_DESIRE_INTERVAL), TimerMode::Once)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
 pub enum Item { Coffee, ColdDrink, HotMeal, Sandwich }
@@ -84,13 +117,24 @@ impl Mood {
 /// Input from the rest of the game: something was handed to this passenger.
 #[derive(EntityEvent)] pub struct Serve { pub entity: Entity, pub item: Item }
 
+fn item_patience(item: Item) -> f32 {
+  match item {
+    Item::Coffee => 30.0,
+    Item::ColdDrink => 20.0,
+    Item::HotMeal => 40.0,
+    Item::Sandwich => 20.0,
+  }
+}
+
 pub struct PassengersPlugin;
 
 impl Plugin for PassengersPlugin {
   fn build(&self, app: &mut App) {
     app
+      .init_resource::<DesireDirector>()
       .add_systems(Startup, spawn_passengers.after(SpawnCabin))
-      .add_systems(Update, tick_patience)
+      // Expired desires are removed first, so their slot is free for the director.
+      .add_systems(Update, (tick_patience, cool_down_passengers, direct_desires).chain())
       .add_observer(improve_mood)
       .add_observer(worsen_mood);
   }
@@ -118,7 +162,9 @@ fn spawn_passengers(
 
     let passenger_entity = commands.spawn((
       Name::new("Passenger"),
-      Passenger,
+      Passenger {
+        desire_cooldown: desire_cooldown(&mut rng),
+      },
       SeatedIn(seat_entity),
       Sprite::from_image(sprites.choose(&mut rng).unwrap().clone()),
       FEET_ANCHOR,
@@ -126,13 +172,6 @@ fn spawn_passengers(
       *seat_target,
     )).id();
     passengers.push(passenger_entity);
-  }
-
-  // Assign initial thought bubbles to a subset of passengers.
-  for &passenger_entity in passengers.iter().take(INITIAL_BUBBLES) {
-    let item = Item::random(&mut rng);
-    let duration = Duration::from_secs_f32(rng.random_range(20.0..40.0));
-    commands.entity(passenger_entity).insert(Desire::new(item, duration));
   }
 }
 
@@ -148,6 +187,49 @@ fn tick_patience(
       commands.entity(entity).remove::<Desire>();
     }
   }
+}
+
+fn cool_down_passengers(time: Res<Time>, mut passengers: Query<&mut Passenger, Without<Desire>>) {
+  for mut passenger in &mut passengers {
+    passenger.desire_cooldown.tick(time.delta());
+  }
+}
+
+/// Once the interval is up, gives a random rested passenger a desire. While the
+/// cabin is at its limit or nobody is rested, the director stays due and
+/// hands out the desire as soon as it can.
+fn direct_desires(
+  mut commands: Commands,
+  time: Res<Time>,
+  mut director: ResMut<DesireDirector>,
+  active: Query<(), With<Desire>>,
+  mut passengers: Query<(Entity, &mut Passenger, &SeatedIn), Without<Desire>>,
+  seats: Query<&Seat>,
+) {
+  director.next.tick(time.delta());
+  if !director.next.is_finished() || active.iter().count() >= director.max_active {
+    return;
+  }
+
+  let mut rng = rand::rng();
+  let Some((entity, mut passenger, seated_in)) = passengers
+    .iter_mut()
+    .filter(|(_, passenger, _)| passenger.desire_cooldown.is_finished())
+    .choose(&mut rng)
+  else {
+    return;
+  };
+
+  let item = Item::random(&mut rng);
+  let mut patience = item_patience(item);
+  if seats.get(seated_in.0).is_ok_and(|seat| seat.class == SeatClass::Business) {
+    patience *= BUSINESS_IMPATIENCE_FACTOR;
+  }
+  commands.entity(entity).insert(Desire::new(item, Duration::from_secs_f32(patience)));
+
+  // The cooldown only runs once this desire is over.
+  passenger.desire_cooldown = desire_cooldown(&mut rng);
+  director.next = desire_interval(&mut rng);
 }
 
 fn improve_mood(satisfied: On<DesireSatisfied>, mut commands: Commands, moods: Query<&Mood>) {
