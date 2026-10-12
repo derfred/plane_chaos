@@ -41,9 +41,8 @@ pub struct Attendant {
 enum Activity {
   Idle,
   Walking {
-    /// Remaining waypoints of the walk.
+    task: Task,
     path: VecDeque<Vec2>,
-    /// Facing to take once the path is finished.
     facing_on_arrival: Option<Facing>,
   },
 }
@@ -202,40 +201,46 @@ fn work(time: Res<Time>, walk_targets: Query<&WalkTarget>, mut attendant: Single
       return;
     };
     attendant.activity = Activity::Walking {
+      task,
       path: route(attendant.position, target.spot),
       facing_on_arrival: target.facing,
     };
   } else {
     let attendant = &mut **attendant;
-    let Activity::Walking { path, facing_on_arrival } = &mut attendant.activity else {
+    let Activity::Walking { task, path, facing_on_arrival } = &mut attendant.activity else {
       return;
     };
-    let mut budget = SPEED * time.delta_secs();
-    while budget > 0.0 {
-      let Some(&waypoint) = path.front() else {
-        break;
-      };
-      let delta = waypoint - attendant.position;
-      let distance = delta.length();
-      if distance > f32::EPSILON {
-        attendant.facing = Facing::of_movement(delta);
-      }
-      if distance <= budget {
-        attendant.position = waypoint;
-        path.pop_front();
-        budget -= distance;
-      } else {
-        attendant.position += delta / distance * budget;
-        budget = 0.0;
-      }
-    }
-
-    if path.is_empty() {
-      if let Some(facing) = *facing_on_arrival {
-        attendant.facing = facing;
-      }
+    if task_queue.current() != Some(*task) {
+      // The current task has changed, stop walking. Next frame the attendant will pick up the new task.
       attendant.activity = Activity::Idle;
-      task_queue.finish_current();
+    } else {
+      let mut budget = SPEED * time.delta_secs();
+      while budget > 0.0 {
+        let Some(&waypoint) = path.front() else {
+          break;
+        };
+        let delta = waypoint - attendant.position;
+        let distance = delta.length();
+        if distance > f32::EPSILON {
+          attendant.facing = Facing::of_movement(delta);
+        }
+        if distance <= budget {
+          attendant.position = waypoint;
+          path.pop_front();
+          budget -= distance;
+        } else {
+          attendant.position += delta / distance * budget;
+          budget = 0.0;
+        }
+      }
+
+      if path.is_empty() {
+        if let Some(facing) = *facing_on_arrival {
+          attendant.facing = facing;
+        }
+        attendant.activity = Activity::Idle;
+        task_queue.finish_current();
+      }
     }
   }
 }
