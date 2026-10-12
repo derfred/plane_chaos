@@ -88,8 +88,8 @@ pub fn seat_floor_position(row: usize, column: usize) -> (f32, f32) {
 pub struct WalkTarget {
   /// Floor position as `(along, across)`.
   pub spot: Vec2,
-  /// Direction to face once arrived; `None` keeps the walking direction.
-  pub facing: Option<Facing>,
+  /// Direction to face once arrived
+  pub facing: Facing,
 }
 
 /// Which way the attendant looks, in floor directions.

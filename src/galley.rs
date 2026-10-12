@@ -88,7 +88,7 @@ fn spawn_galley(mut commands: Commands, assets: Res<AssetServer>) {
       Sprite::from_image(assets.load(placement.image)),
       Transform::from_translation(layout::pixel_to_world(placement.center_px, placement.depth_y)),
       // All appliances face the front of the plane, so the attendant faces back to use them.
-      WalkTarget { spot: layout::pixel_to_floor(placement.stand_px), facing: Some(Facing::Back) },
+      WalkTarget { spot: layout::pixel_to_floor(placement.stand_px), facing: Facing::Back },
     ));
     if placement.appliance == Appliance::Lavatory {
       entity.insert(Lavatory { occupied: false });

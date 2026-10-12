@@ -96,5 +96,5 @@ fn spawn_seats(mut commands: Commands, assets: Res<AssetServer>) {
 /// aisle, where she turns towards the seat.
 fn seat_target(row: usize, column: usize) -> WalkTarget {
   let facing = if SEAT_COLUMNS[column] > 0.0 { Facing::Window } else { Facing::Near };
-  WalkTarget { spot: Vec2::new(layout::row_along(row), 0.0), facing: Some(facing) }
+  WalkTarget { spot: Vec2::new(layout::row_along(row), 0.0), facing }
 }

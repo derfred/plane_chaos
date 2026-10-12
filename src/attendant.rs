@@ -38,12 +38,46 @@ pub struct Attendant {
   activity: Activity,
 }
 
+impl Attendant {
+  fn walk_on_path(&mut self, delta_secs: f32) -> bool {
+    let Activity::Walking { path, facing_on_arrival, .. } = &mut self.activity else {
+      return false;
+    };
+
+    let mut budget = SPEED * delta_secs;
+    while budget > 0.0 {
+      let Some(&waypoint) = path.front() else {
+        break;
+      };
+      let delta = waypoint - self.position;
+      let distance = delta.length();
+      if distance > f32::EPSILON {
+        self.facing = Facing::of_movement(delta);
+      }
+      if distance <= budget {
+        self.position = waypoint;
+        path.pop_front();
+        budget -= distance;
+      } else {
+        self.position += delta / distance * budget;
+        budget = 0.0;
+      }
+    }
+    if path.is_empty() {
+      self.facing = *facing_on_arrival;
+      self.activity = Activity::Idle;
+      return true;
+    }
+    false
+  }
+}
+
 enum Activity {
   Idle,
   Walking {
     task: Task,
     path: VecDeque<Vec2>,
-    facing_on_arrival: Option<Facing>,
+    facing_on_arrival: Facing,
   },
 }
 
@@ -190,55 +224,40 @@ fn route(from: Vec2, to: Vec2) -> VecDeque<Vec2> {
   path
 }
 
-fn work(time: Res<Time>, walk_targets: Query<&WalkTarget>, mut attendant: Single<&mut Attendant>, mut task_queue: Single<&mut TaskQueue>) {
-  if matches!(attendant.activity, Activity::Idle) {
-    let Some(task) = task_queue.current() else {
-      return;
-    };
-    let Ok(target) = walk_targets.get(task.target()) else {
-      // The target is gone (e.g. the passenger left): skip the task.
-      task_queue.finish_current();
-      return;
-    };
-    attendant.activity = Activity::Walking {
-      task,
-      path: route(attendant.position, target.spot),
-      facing_on_arrival: target.facing,
-    };
-  } else {
-    let attendant = &mut **attendant;
-    let Activity::Walking { task, path, facing_on_arrival } = &mut attendant.activity else {
-      return;
-    };
-    if task_queue.current() != Some(*task) {
-      // The current task has changed, stop walking. Next frame the attendant will pick up the new task.
-      attendant.activity = Activity::Idle;
-    } else {
-      let mut budget = SPEED * time.delta_secs();
-      while budget > 0.0 {
-        let Some(&waypoint) = path.front() else {
-          break;
-        };
-        let delta = waypoint - attendant.position;
-        let distance = delta.length();
-        if distance > f32::EPSILON {
-          attendant.facing = Facing::of_movement(delta);
-        }
-        if distance <= budget {
-          attendant.position = waypoint;
-          path.pop_front();
-          budget -= distance;
-        } else {
-          attendant.position += delta / distance * budget;
-          budget = 0.0;
-        }
-      }
+fn plan_next_activity(position: Vec2, task_queue: &mut TaskQueue, walk_targets: &Query<&WalkTarget>) -> Activity {
+  let Some(task) = task_queue.current() else {
+    return Activity::Idle;
+  };
+  let Ok(target) = walk_targets.get(task.target()) else {
+    // The target is gone (e.g. the passenger left): skip the task.
+    task_queue.finish_current();
+    return Activity::Idle;
+  };
+  Activity::Walking {
+    task,
+    path: route(position, target.spot),
+    facing_on_arrival: target.facing,
+  }
+}
 
-      if path.is_empty() {
-        if let Some(facing) = *facing_on_arrival {
-          attendant.facing = facing;
-        }
+fn work(time: Res<Time>, walk_targets: Query<&WalkTarget>, mut attendant: Single<&mut Attendant>, mut task_queue: Single<&mut TaskQueue>) {
+  // Nothing to do: return before the mutable deref, so she isn't marked as changed.
+  if matches!(attendant.activity, Activity::Idle) && task_queue.current().is_none() {
+    return;
+  }
+  let attendant = &mut **attendant;
+
+  match attendant.activity {
+    Activity::Idle => {
+      attendant.activity = plan_next_activity(attendant.position, &mut task_queue, &walk_targets);
+    }
+    Activity::Walking { task, .. } => {
+      if task_queue.current() != Some(task) {
+        // The current task has changed, stop walking. Next frame the attendant will pick up the new task.
         attendant.activity = Activity::Idle;
+        return;
+      }
+      if attendant.walk_on_path(time.delta_secs()) {
         task_queue.finish_current();
       }
     }
