@@ -1,5 +1,3 @@
-//! Spawns the cabin, its seats and the initial passengers.
-
 use bevy::prelude::*;
 
 use crate::layout::{self, BUSINESS_ROWS, FEET_ANCHOR, ROWS, SEAT_COLUMNS, SPRITE_SCALE, Facing, WalkTarget};
@@ -7,10 +5,8 @@ use crate::layout::{self, BUSINESS_ROWS, FEET_ANCHOR, ROWS, SEAT_COLUMNS, SPRITE
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpawnCabin;
 
-/// Startup configuration of a game round.
 #[derive(Resource)]
 pub struct CabinConfig {
-  /// Fraction of seats (0.0..=1.0) occupied when the game starts.
   pub occupancy: f32,
 }
 
@@ -58,12 +54,10 @@ fn spawn_cabin(mut commands: Commands, assets: Res<AssetServer>) {
     Transform::from_xyz(0.0, 0.0, layout::BACKGROUND_Z),
     Pickable::IGNORE,
   ));
-  // The near wall is drawn on top of seats and passengers so they appear inside the cabin.
   commands.spawn((
     Name::new("Cabin front wall"),
     Sprite::from_image(assets.load("plane_cabin_front_layer.png")),
     Transform::from_xyz(0.0, 0.0, layout::FOREGROUND_Z),
-    // Lets clicks through to the seats it overlaps.
     Pickable::IGNORE,
   ));
 }

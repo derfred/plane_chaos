@@ -83,7 +83,7 @@ pub fn seat_floor_position(row: usize, column: usize) -> (f32, f32) {
 
 /// Floor spot the attendant walks to when the entity is clicked.
 // Sprite picking only considers sprites that have a `Pickable` component.
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Debug)]
 #[require(Pickable)]
 pub struct WalkTarget {
   /// Floor position as `(along, across)`.
