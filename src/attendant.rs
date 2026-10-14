@@ -1,5 +1,3 @@
-//! The flight attendant, who walks to whatever seat row or appliance is clicked.
-
 use std::collections::VecDeque;
 
 use bevy::picking::events::PointerClick;
@@ -29,7 +27,7 @@ const FEET: Vec2 = Vec2::new(0.11, -0.44);
 /// How many tasks the attendant can have planned, including the current one.
 const MAX_TASKS: usize = 4;
 
-#[derive(Event)] pub struct TaskQueueFull(Task);
+#[derive(Event)] pub struct TaskQueueFull;
 
 #[derive(Component)]
 pub struct Attendant {
@@ -210,7 +208,7 @@ fn direct_attendant(
   };
   let task = Task::for_target(click.entity, is_appliance, is_passenger, occupant.map(|o| **o));
   if task_queue.push(task).is_err() {
-    commands.trigger(TaskQueueFull(task));
+    commands.trigger(TaskQueueFull);
   }
 }
 

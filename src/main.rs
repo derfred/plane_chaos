@@ -1,4 +1,5 @@
 mod attendant;
+mod popups;
 mod thought_bubble;
 mod passengers;
 mod cabin;
@@ -9,6 +10,7 @@ mod hud;
 use bevy::camera::ScalingMode;
 use bevy::prelude::*;
 
+use popups::PopupsPlugin;
 use attendant::AttendantPlugin;
 use thought_bubble::ThoughtBubblePlugin;
 use cabin::{CabinConfig, CabinPlugin};
@@ -30,7 +32,7 @@ fn main() {
     )
     .insert_resource(ClearColor(Color::srgb(0.53, 0.75, 0.92)))
     .insert_resource(CabinConfig { occupancy: 0.6 })
-    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin, PassengersPlugin, ThoughtBubblePlugin, HudPlugin))
+    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin, PassengersPlugin, ThoughtBubblePlugin, PopupsPlugin, HudPlugin))
     .add_systems(Startup, spawn_camera)
     .run();
 }
