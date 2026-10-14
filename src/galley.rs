@@ -2,17 +2,9 @@
 
 use bevy::prelude::*;
 use strum::{EnumIter, IntoEnumIterator};
-use std::time::Duration;
 
 use crate::layout::{self, Facing, WalkTarget};
 use crate::popups::{Popup, PopupProgress, PopupTimer};
-
-const COFFEE_MAKER_DURATION: f32 = 1.0;
-const OVEN_DURATION: f32 = 2.0;
-const COFFEE_MAKER_SPOIL: f32 = 10.0;
-const OVEN_SPOIL: f32 = 5.0;
-const COFFEE_MAKER_ITEMS: usize = 10;
-const OVEN_ITEMS: usize = 4;
 
 /// How long the spoilt popup stays up.
 const SPOILT_SHOW_TIME: f32 = 3.0;
@@ -63,74 +55,48 @@ fn popup_style(appliance: Appliance) -> Option<PopupStyle> {
 #[derive(Component)]
 struct ProgressPopup;
 
-#[derive(Component, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, EnumIter)]
-pub enum ApplianceState {
-  #[default]
+/// What an appliance looks like; derived from its state components.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
+enum ApplianceState {
   Empty,
   InProgress,
-  Filled
+  Filled,
 }
 
-#[derive(EntityEvent)] pub struct ApplianceStarted(pub Entity);
-#[derive(EntityEvent)] pub struct ApplianceFinished(pub Entity);
-#[derive(EntityEvent)] pub struct ApplianceSpoiled(pub Entity);
+/// What an appliance produces and how long it takes. Fixed per appliance.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Recipe {
+  prepare_secs: f32,
+  spoil_secs: f32,
+  items: usize,
+}
 
-#[derive(Component, Clone, PartialEq, Debug)]
-pub struct ApplianceProgress {
-  pub fraction: f32, /// How far along with its current job, `0.0..=1.0`.
-  pub state: ApplianceState,
+fn recipe(appliance: Appliance) -> Option<Recipe> {
+  match appliance {
+    Appliance::CoffeeMaker => Some(Recipe { prepare_secs: 1.0, spoil_secs: 10.0, items: 10 }),
+    Appliance::Oven => Some(Recipe { prepare_secs: 2.0, spoil_secs: 5.0, items: 4 }),
+    Appliance::Counter | Appliance::Fridge | Appliance::Lavatory => None,
+  }
+}
+
+/// The appliance is preparing its items. An appliance without `Preparing` or
+/// [`Filled`] is empty.
+#[derive(Component, Debug)]
+pub struct Preparing(Timer);
+
+/// The appliance holds ready items, which spoil when the timer runs out.
+#[derive(Component, Debug)]
+pub struct Filled {
   pub items: usize,
-  timer: Timer,
+  spoils: Timer,
 }
 
-impl ApplianceProgress {
-  pub fn empty() -> Self {
-    let mut timer = Timer::from_seconds(0.0, TimerMode::Once);
-    timer.pause();
-    Self {
-      fraction: 0.0,
-      state: ApplianceState::Empty,
-      items: 0,
-      timer
-    }
-  }
+/// Input from the rest of the game: start preparing on this appliance. Ignored
+/// unless the appliance has a [`Recipe`] and is empty.
+#[derive(EntityEvent)] pub struct StartAppliance(pub Entity);
 
-  pub fn tick(&mut self, delta: Duration) {
-    self.timer.tick(delta);
-    self.fraction = self.timer.fraction();
-  }
-
-  pub fn complete_operation(&mut self, appliance: Appliance) {
-    let duration = match (appliance, self.state) {
-      (Appliance::CoffeeMaker, ApplianceState::Empty) => COFFEE_MAKER_DURATION,
-      (Appliance::Oven, ApplianceState::Empty) => OVEN_DURATION,
-      (Appliance::CoffeeMaker, ApplianceState::InProgress) => COFFEE_MAKER_SPOIL,
-      (Appliance::Oven, ApplianceState::InProgress) => OVEN_SPOIL,
-      _ => 0.0,
-    };
-
-    self.state = match self.state {
-      ApplianceState::Empty => ApplianceState::InProgress,
-      ApplianceState::InProgress => ApplianceState::Filled,
-      ApplianceState::Filled => ApplianceState::Empty,
-    };
-
-    self.timer.reset();
-    self.timer.set_duration(Duration::from_secs_f32(duration));
-
-    if self.state == ApplianceState::Empty {
-      self.timer.pause();
-      self.items = 0;
-    } else {
-      self.timer.unpause();
-      self.items = match appliance {
-        Appliance::CoffeeMaker => COFFEE_MAKER_ITEMS,
-        Appliance::Oven => OVEN_ITEMS,
-        _ => 0,
-      };
-    }
-  }
-}
+/// The items in this appliance spoiled; it is empty again.
+#[derive(EntityEvent)] pub struct ApplianceSpoiled(pub Entity);
 
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Appliance {
@@ -217,14 +183,14 @@ impl Plugin for GalleyPlugin {
   fn build(&self, app: &mut App) {
     app
       .add_systems(Startup, spawn_galley)
-      .add_observer(update_appliance_state::<ApplianceStarted>)
-      .add_observer(update_appliance_state::<ApplianceFinished>)
-      .add_observer(update_appliance_state::<ApplianceSpoiled>)
-      .add_systems(Update, appliance_progress)
+      .add_observer(start_appliance)
+      .add_systems(Update, (tick_preparing, tick_spoiling, update_progress_bars).chain())
+      .add_observer(show_preparing)
+      .add_observer(show_filled)
+      .add_observer(show_empty)
       .add_observer(show_popup)
       .add_observer(remove_popup)
-      .add_observer(show_spoilt_popup)
-      .add_systems(Update, update_progress_bars);
+      .add_observer(show_spoilt_popup);
   }
 }
 
@@ -247,40 +213,76 @@ fn spawn_galley(mut commands: Commands, assets: Res<AssetServer>) {
       Transform::from_translation(layout::pixel_to_world(placement.center_px, placement.depth_y)),
       WalkTarget { spot: layout::pixel_to_floor(placement.stand_px), facing: Facing::Back },
     ));
-    if let Appliance::CoffeeMaker | Appliance::Oven = placement.appliance {
-      entity.insert(ApplianceProgress::empty());
+    if let Some(recipe) = recipe(placement.appliance) {
+      entity.insert(recipe);
     }
   }
 }
 
-fn appliance_progress(mut commands: Commands, time: Res<Time>, mut query: Query<(Entity, &Appliance, &mut ApplianceProgress)>) {
-  for (entity, appliance, mut progress) in &mut query {
-    progress.tick(time.delta());
-    if progress.timer.just_finished() {
-      progress.complete_operation(*appliance);
-      match progress.state {
-        ApplianceState::InProgress => commands.trigger(ApplianceStarted(entity)),
-        ApplianceState::Filled => commands.trigger(ApplianceFinished(entity)),
-        ApplianceState::Empty => commands.trigger(ApplianceSpoiled(entity)),
-      }
+fn start_appliance(
+  start: On<StartAppliance>,
+  mut commands: Commands,
+  appliances: Query<&Recipe, (Without<Preparing>, Without<Filled>)>,
+) {
+  if let Ok(recipe) = appliances.get(start.0) {
+    let timer = Timer::from_seconds(recipe.prepare_secs, TimerMode::Once);
+    commands.entity(start.0).insert(Preparing(timer));
+  }
+}
+
+fn tick_preparing(
+  mut commands: Commands,
+  time: Res<Time>,
+  mut appliances: Query<(Entity, &mut Preparing, &Recipe)>,
+) {
+  for (entity, mut preparing, recipe) in &mut appliances {
+    if preparing.0.tick(time.delta()).just_finished() {
+      commands.entity(entity).remove::<Preparing>().insert(Filled {
+        items: recipe.items,
+        spoils: Timer::from_seconds(recipe.spoil_secs, TimerMode::Once),
+      });
     }
   }
 }
 
+fn tick_spoiling(
+  mut commands: Commands,
+  time: Res<Time>,
+  mut appliances: Query<(Entity, &mut Filled)>,
+) {
+  for (entity, mut filled) in &mut appliances {
+    if filled.spoils.tick(time.delta()).just_finished() {
+      commands.entity(entity).remove::<Filled>();
+      commands.trigger(ApplianceSpoiled(entity));
+    }
+  }
+}
 
-fn update_appliance_state<E: EntityEvent>(evt: On<E>, assets: Res<AssetServer>, mut query: Query<(&Appliance, &ApplianceProgress, &mut Sprite)>) {
-  if let Ok((appliance, progress, mut sprite)) = query.get_mut(evt.event_target()) {
-    sprite.image = assets.load(appliance_image(*appliance, progress.state));
+fn show_preparing(insert: On<Insert<Preparing>>, assets: Res<AssetServer>, sprites: Query<(&Appliance, &mut Sprite)>) {
+  set_image(insert.entity, ApplianceState::InProgress, &assets, sprites);
+}
+
+fn show_filled(insert: On<Insert<Filled>>, assets: Res<AssetServer>, sprites: Query<(&Appliance, &mut Sprite)>) {
+  set_image(insert.entity, ApplianceState::Filled, &assets, sprites);
+}
+
+fn show_empty(discard: On<Discard<Filled>>, assets: Res<AssetServer>, sprites: Query<(&Appliance, &mut Sprite)>) {
+  set_image(discard.entity, ApplianceState::Empty, &assets, sprites);
+}
+
+fn set_image(entity: Entity, state: ApplianceState, assets: &AssetServer, mut sprites: Query<(&Appliance, &mut Sprite)>) {
+  if let Ok((appliance, mut sprite)) = sprites.get_mut(entity) {
+    sprite.image = assets.load(appliance_image(*appliance, state));
   }
 }
 
 fn show_popup(
-  started: On<ApplianceStarted>,
+  insert: On<Insert<Preparing>>,
   mut commands: Commands,
   assets: Res<AssetServer>,
   appliances: Query<&Appliance>,
 ) {
-  let entity = started.0;
+  let entity = insert.entity;
   let Ok(appliance) = appliances.get(entity) else {
     return;
   };
@@ -299,12 +301,12 @@ fn show_popup(
 }
 
 fn remove_popup(
-  finished: On<ApplianceFinished>,
+  discard: On<Discard<Preparing>>,
   mut commands: Commands,
   appliances: Query<&Children>,
   popups: Query<(), With<ProgressPopup>>,
 ) {
-  let Ok(children) = appliances.get(finished.0) else {
+  let Ok(children) = appliances.get(discard.entity) else {
     return;
   };
   for child in children.iter() {
@@ -316,14 +318,15 @@ fn remove_popup(
 
 fn update_progress_bars(
   mut popups: Query<(&ChildOf, &mut PopupProgress), With<ProgressPopup>>,
-  appliances: Query<&ApplianceProgress>,
+  appliances: Query<&Preparing>,
 ) {
   for (appliance, mut progress) in &mut popups {
-    let Ok(appliance) = appliances.get(appliance.parent()) else {
+    let Ok(preparing) = appliances.get(appliance.parent()) else {
       continue;
     };
-    if progress.get() != appliance.fraction {
-      progress.set(appliance.fraction);
+    let fraction = preparing.0.fraction();
+    if progress.get() != fraction {
+      progress.set(fraction);
     }
   }
 }

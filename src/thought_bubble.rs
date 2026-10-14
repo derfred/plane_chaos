@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::popups::{Popup, PopupProgress, PopupTimer};
-use crate::passengers::{Item, Mood, Desire};
+use crate::passengers::{Item, Mood, MoodChanged, Desire};
 
 /// Where the bubble's tail points to, in passenger sprite pixels relative to
 /// the passenger's feet: just above the top right of the head.
@@ -39,7 +39,8 @@ impl Plugin for ThoughtBubblePlugin {
     app
       .add_observer(show_bubble)
       .add_observer(remove_bubble)
-      .add_systems(Update, (update_rings, mood_change));
+      .add_observer(show_mood_bubble)
+      .add_systems(Update, update_rings);
   }
 }
 
@@ -89,20 +90,16 @@ fn update_rings(
   }
 }
 
-fn mood_change(
+fn show_mood_bubble(
+  changed: On<MoodChanged>,
   mut commands: Commands,
   assets: Res<AssetServer>,
-  query: Query<(Entity, Ref<Mood>), Changed<Mood>>,
 ) {
-  for (entity, mood) in query {
-    if !mood.is_added() {
-      commands.spawn((
-        Name::new("Mood bubble"),
-        Popup::thought(assets.load(mood_image(*mood)), None),
-        PopupTimer::for_secs(SHOW_TIME).delayed(SHOW_DELAY),
-        Transform::from_translation(HEAD_OFFSET.extend(0.0)),
-        ChildOf(entity),
-      ));
-    }
-  }
+  commands.spawn((
+    Name::new("Mood bubble"),
+    Popup::thought(assets.load(mood_image(changed.new)), None),
+    PopupTimer::for_secs(SHOW_TIME).delayed(SHOW_DELAY),
+    Transform::from_translation(HEAD_OFFSET.extend(0.0)),
+    ChildOf(changed.entity),
+  ));
 }

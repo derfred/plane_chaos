@@ -110,6 +110,8 @@ impl Mood {
   }
 }
 
+#[derive(EntityEvent)] pub struct MoodChanged { pub entity: Entity, pub old: Mood, pub new: Mood }
+
 /// Outcome events, triggered on the passenger.
 #[derive(EntityEvent)] pub struct DesireSatisfied { pub entity: Entity, pub item: Item }
 #[derive(EntityEvent)] pub struct DesireExpired   { pub entity: Entity, pub item: Item }
@@ -234,12 +236,17 @@ fn direct_desires(
 
 fn improve_mood(satisfied: On<DesireSatisfied>, mut commands: Commands, moods: Query<&Mood>) {
   if let Ok(&mood) = moods.get(satisfied.entity) {
-    commands.entity(satisfied.entity).insert(mood.better());
+    set_mood(&mut commands, satisfied.entity, mood, mood.better());
   }
 }
 
 fn worsen_mood(expired: On<DesireExpired>, mut commands: Commands, moods: Query<&Mood>) {
   if let Ok(&mood) = moods.get(expired.entity) {
-    commands.entity(expired.entity).insert(mood.worse());
+    set_mood(&mut commands, expired.entity, mood, mood.worse());
   }
+}
+
+fn set_mood(commands: &mut Commands, entity: Entity, old: Mood, new: Mood) {
+  commands.entity(entity).insert(new);
+  commands.trigger(MoodChanged { entity, old, new });
 }
