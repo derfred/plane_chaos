@@ -6,8 +6,8 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 use crate::cabin::Occupant;
-use crate::passengers::Passenger;
-use crate::galley::Appliance;
+use crate::passengers::{Passenger, Item};
+use crate::galley::{Appliance, Filled, interact_with_appliance};
 use crate::layout::{self, Facing, SPRITE_SCALE, WalkTarget};
 
 /// Walking speed in floor units per second.
@@ -81,8 +81,10 @@ enum Activity {
 
 #[derive(Resource)]
 struct AttendantSprites {
-  front: Handle<Image>,
-  back: Handle<Image>,
+  front_idle: Handle<Image>,
+  back_idle: Handle<Image>,
+  front_tray: Handle<Image>,
+  back_tray: Handle<Image>,
 }
 
 /// Something the player told the attendant to do. What actually happens is
@@ -147,8 +149,8 @@ impl TaskQueue {
     self.tasks.front().copied()
   }
 
-  pub fn finish_current(&mut self) {
-    self.tasks.pop_front();
+  pub fn finish_current(&mut self) -> Task {
+    self.tasks.pop_front().expect("No current task to finish")
   }
 
   pub fn clear(&mut self) {
@@ -159,6 +161,9 @@ impl TaskQueue {
     self.tasks.iter().copied()
   }
 }
+
+#[derive(Component)]
+struct Tray(pub Item);
 
 pub struct AttendantPlugin;
 
@@ -173,8 +178,10 @@ impl Plugin for AttendantPlugin {
 
 fn spawn_attendant(mut commands: Commands, assets: Res<AssetServer>) {
   let sprites = AttendantSprites {
-    front: assets.load("flight_attendant_idle.png"),
-    back: assets.load("flight_attendant_idle_back.png"),
+    front_idle: assets.load("flight_attendant_idle_front.png"),
+    back_idle: assets.load("flight_attendant_idle_back.png"),
+    front_tray: assets.load("flight_attendant_tray_front.png"),
+    back_tray: assets.load("flight_attendant_tray_back.png"),
   };
   commands.spawn((
     Name::new("Flight attendant"),
@@ -184,7 +191,7 @@ fn spawn_attendant(mut commands: Commands, assets: Res<AssetServer>) {
       activity: Activity::Idle,
     },
     TaskQueue::default(),
-    Sprite::from_image(sprites.front.clone()),
+    Sprite::from_image(sprites.front_idle.clone()),
     Anchor(FEET),
     Transform::from_translation(layout::floor_to_world(START.x, START.y))
       .with_scale(Vec3::splat(SPRITE_SCALE)),
@@ -238,12 +245,20 @@ fn plan_next_activity(position: Vec2, task_queue: &mut TaskQueue, walk_targets: 
   }
 }
 
-fn work(time: Res<Time>, walk_targets: Query<&WalkTarget>, mut attendant: Single<&mut Attendant>, mut task_queue: Single<&mut TaskQueue>) {
+fn work(
+  time: Res<Time>,
+  mut commands: Commands,
+  walk_targets: Query<&WalkTarget>,
+  attendant: Single<(Entity, &mut Attendant)>,
+  mut task_queue: Single<&mut TaskQueue>,
+  mut appliances: Query<(&Appliance, Option<&mut Filled>)>,
+) {
   // Nothing to do: return before the mutable deref, so she isn't marked as changed.
+  let (attendant_entity, mut attendant) = attendant.into_inner();
   if matches!(attendant.activity, Activity::Idle) && task_queue.current().is_none() {
     return;
   }
-  let attendant = &mut **attendant;
+  let attendant = &mut *attendant;
 
   match attendant.activity {
     Activity::Idle => {
@@ -251,12 +266,16 @@ fn work(time: Res<Time>, walk_targets: Query<&WalkTarget>, mut attendant: Single
     }
     Activity::Walking { task, .. } => {
       if task_queue.current() != Some(task) {
-        // The current task has changed, stop walking. Next frame the attendant will pick up the new task.
+        // current task has changed, stop walking. Next frame the attendant will pick up the new task.
         attendant.activity = Activity::Idle;
         return;
       }
       if attendant.walk_on_path(time.delta_secs()) {
-        task_queue.finish_current();
+        let task = task_queue.finish_current();
+        if let Ok((appliance, filled)) = appliances.get_mut(task.target())
+          && let Some(tray_item) = interact_with_appliance(&mut commands, task.target(), appliance, filled) {
+            commands.entity(attendant_entity).insert(Tray(tray_item));
+          }
       }
     }
   }
@@ -264,16 +283,20 @@ fn work(time: Res<Time>, walk_targets: Query<&WalkTarget>, mut attendant: Single
 
 fn update_sprite(
   sprites: Res<AttendantSprites>,
-  mut attendants: Query<(&Attendant, &mut Sprite, &mut Anchor, &mut Transform), Changed<Attendant>>,
+  mut attendants: Query<(&Attendant, &mut Sprite, &mut Anchor, &mut Transform, Has<Tray>), Or<(Changed<Attendant>, Changed<Tray>)>>,
 ) {
-  for (attendant, mut sprite, mut anchor, mut transform) in &mut attendants {
+  for (attendant, mut sprite, mut anchor, mut transform, has_tray) in &mut attendants {
     // The front sprite looks towards the front of the plane, the back sprite
     // towards the back; mirrored they look across the cabin.
-    let (image, flip) = match attendant.facing {
-      Facing::Front => (&sprites.front, false),
-      Facing::Back => (&sprites.back, false),
-      Facing::Window => (&sprites.back, true),
-      Facing::Near => (&sprites.front, true),
+    let (image, flip) = match (attendant.facing, has_tray) {
+      (Facing::Front, false) => (&sprites.front_idle, false),
+      (Facing::Back, false) => (&sprites.back_idle, false),
+      (Facing::Window, false) => (&sprites.back_idle, true),
+      (Facing::Near, false) => (&sprites.front_idle, true),
+      (Facing::Front, true) => (&sprites.front_tray, false),
+      (Facing::Back, true) => (&sprites.back_tray, false),
+      (Facing::Window, true) => (&sprites.back_tray, true),
+      (Facing::Near, true) => (&sprites.front_tray, true),
     };
     if sprite.image != *image {
       sprite.image = image.clone();

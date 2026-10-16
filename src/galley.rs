@@ -5,6 +5,7 @@ use strum::{EnumIter, IntoEnumIterator};
 
 use crate::layout::{self, Facing, WalkTarget};
 use crate::popups::{Popup, PopupProgress, PopupTimer};
+use crate::passengers::Item;
 
 /// How long the spoilt popup stays up.
 const SPOILT_SHOW_TIME: f32 = 3.0;
@@ -353,4 +354,30 @@ fn show_spoilt_popup(
     Transform::from_translation(offset.extend(0.0)),
     ChildOf(entity),
   ));
+}
+
+fn take_from_or_start_appliance(commands: &mut Commands, entity: Entity, appliance: &Appliance, filled: Option<Mut<Filled>>) -> Option<Item> {
+  if let Some(mut filled) = filled {
+    filled.items -= 1;
+    if filled.items == 0 {
+      commands.entity(entity).remove::<Filled>();
+    }
+    match appliance {
+      Appliance::CoffeeMaker => Some(Item::Coffee),
+      Appliance::Oven => Some(Item::HotMeal),
+      _ => None,
+    }
+  } else {
+    commands.trigger(StartAppliance(entity));
+    None
+  }
+}
+
+pub fn interact_with_appliance(commands: &mut Commands, entity: Entity, appliance: &Appliance, filled: Option<Mut<Filled>>) -> Option<Item> {
+  match (appliance, filled) {
+    (Appliance::Counter, _) => Some(Item::Sandwich),
+    (Appliance::Fridge, _) => Some(Item::ColdDrink),
+    (Appliance::Oven | Appliance::CoffeeMaker, filled) => take_from_or_start_appliance(commands, entity, appliance, filled),
+    (_, _) => None,
+  }
 }
