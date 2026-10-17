@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::prelude::*;
 
 use crate::popups::{Popup, PopupProgress, PopupTimer};
@@ -7,8 +9,8 @@ use crate::passengers::{Item, Mood, MoodChanged, Desire};
 /// the passenger's feet: just above the top right of the head.
 const HEAD_OFFSET: Vec2 = Vec2::new(11.0, 165.0);
 
-const SHOW_DELAY: f32 = 0.5;
-const SHOW_TIME: f32 = 3.0;
+const SHOW_DELAY: Duration = Duration::from_millis(500);
+const SHOW_TIME: Duration = Duration::from_secs(3);
 
 /// Marks the popup showing a passenger's current desire.
 #[derive(Component)]
@@ -98,7 +100,7 @@ fn show_mood_bubble(
   commands.spawn((
     Name::new("Mood bubble"),
     Popup::thought(assets.load(mood_image(changed.new)), None),
-    PopupTimer::for_secs(SHOW_TIME).delayed(SHOW_DELAY),
+    PopupTimer::showing_for(SHOW_TIME).delayed(SHOW_DELAY),
     Transform::from_translation(HEAD_OFFSET.extend(0.0)),
     ChildOf(changed.entity),
   ));

@@ -1,5 +1,7 @@
 //! The galley and lavatory at the back of the plane.
 
+use std::time::Duration;
+
 use bevy::prelude::*;
 use strum::{EnumIter, IntoEnumIterator};
 
@@ -8,7 +10,7 @@ use crate::popups::{Popup, PopupProgress, PopupTimer};
 use crate::passengers::Item;
 
 /// How long the spoilt popup stays up.
-const SPOILT_SHOW_TIME: f32 = 3.0;
+const SPOILT_SHOW_TIME: Duration = Duration::from_secs(3);
 
 struct PopupStyle {
   /// Icon of the progress popup.
@@ -67,15 +69,15 @@ enum ApplianceState {
 /// What an appliance produces and how long it takes. Fixed per appliance.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct Recipe {
-  prepare_secs: f32,
-  spoil_secs: f32,
+  prepare: Duration,
+  spoil: Duration,
   items: usize,
 }
 
 fn recipe(appliance: Appliance) -> Option<Recipe> {
   match appliance {
-    Appliance::CoffeeMaker => Some(Recipe { prepare_secs: 1.0, spoil_secs: 10.0, items: 10 }),
-    Appliance::Oven => Some(Recipe { prepare_secs: 2.0, spoil_secs: 5.0, items: 4 }),
+    Appliance::CoffeeMaker => Some(Recipe { prepare: Duration::from_secs(1), spoil: Duration::from_secs(10), items: 10 }),
+    Appliance::Oven => Some(Recipe { prepare: Duration::from_secs(2), spoil: Duration::from_secs(5), items: 4 }),
     Appliance::Counter | Appliance::Fridge | Appliance::Lavatory => None,
   }
 }
@@ -226,8 +228,7 @@ fn start_appliance(
   appliances: Query<&Recipe, (Without<Preparing>, Without<Filled>)>,
 ) {
   if let Ok(recipe) = appliances.get(start.0) {
-    let timer = Timer::from_seconds(recipe.prepare_secs, TimerMode::Once);
-    commands.entity(start.0).insert(Preparing(timer));
+    commands.entity(start.0).insert(Preparing(Timer::new(recipe.prepare, TimerMode::Once)));
   }
 }
 
@@ -240,7 +241,7 @@ fn tick_preparing(
     if preparing.0.tick(time.delta()).just_finished() {
       commands.entity(entity).remove::<Preparing>().insert(Filled {
         items: recipe.items,
-        spoils: Timer::from_seconds(recipe.spoil_secs, TimerMode::Once),
+        spoils: Timer::new(recipe.spoil, TimerMode::Once),
       });
     }
   }
@@ -350,7 +351,7 @@ fn show_spoilt_popup(
   commands.spawn((
     Name::new("Spoilt popup"),
     Popup::spoilt(assets.load(icon)),
-    PopupTimer::for_secs(SPOILT_SHOW_TIME),
+    PopupTimer::showing_for(SPOILT_SHOW_TIME),
     Transform::from_translation(offset.extend(0.0)),
     ChildOf(entity),
   ));

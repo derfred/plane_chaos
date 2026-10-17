@@ -17,14 +17,14 @@ const PASSENGER_SPRITES: [&str; 6] = [
 ];
 
 const BUSINESS_IMPATIENCE_FACTOR: f32 = 0.75;
-const MAX_DESIRE_RESET: f32 = 30.0;
-const MIN_DESIRE_RESET: f32 = 10.0;
+const MAX_DESIRE_RESET: Duration = Duration::from_secs(30);
+const MIN_DESIRE_RESET: Duration = Duration::from_secs(10);
 
 /// Most desires active across the cabin at the same time.
 const MAX_ACTIVE_DESIRES: usize = 6;
 /// Seconds between two desires handed out by the [`DesireDirector`].
-const MIN_DESIRE_INTERVAL: f32 = 4.0;
-const MAX_DESIRE_INTERVAL: f32 = 8.0;
+const MIN_DESIRE_INTERVAL: Duration = Duration::from_secs(4);
+const MAX_DESIRE_INTERVAL: Duration = Duration::from_secs(8);
 
 #[derive(Component)]
 #[require(Mood)]
@@ -35,7 +35,7 @@ pub struct Passenger {
 }
 
 fn desire_cooldown<R: rand::Rng + ?Sized>(rng: &mut R) -> Timer {
-  Timer::from_seconds(rng.random_range(MIN_DESIRE_RESET..MAX_DESIRE_RESET), TimerMode::Once)
+  Timer::new(rng.random_range(MIN_DESIRE_RESET..MAX_DESIRE_RESET), TimerMode::Once)
 }
 
 /// Paces desires across the whole cabin: once per interval it hands a desire
@@ -53,7 +53,7 @@ impl Default for DesireDirector {
 }
 
 fn desire_interval<R: rand::Rng + ?Sized>(rng: &mut R) -> Timer {
-  Timer::from_seconds(rng.random_range(MIN_DESIRE_INTERVAL..MAX_DESIRE_INTERVAL), TimerMode::Once)
+  Timer::new(rng.random_range(MIN_DESIRE_INTERVAL..MAX_DESIRE_INTERVAL), TimerMode::Once)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, EnumIter)]
@@ -69,10 +69,10 @@ impl Item {
 pub struct Desire { pub item: Item, patience: Timer }
 
 impl Desire {
-  pub fn new(item: Item, duration: Duration) -> Self {
+  pub fn new(item: Item, patience: Duration) -> Self {
     Self {
       item,
-      patience: Timer::from_seconds(duration.as_secs_f32(), TimerMode::Once),
+      patience: Timer::new(patience, TimerMode::Once),
     }
   }
 
@@ -119,12 +119,12 @@ impl Mood {
 /// Input from the rest of the game: something was handed to this passenger.
 #[derive(EntityEvent)] pub struct Serve { pub entity: Entity, pub item: Item }
 
-fn item_patience(item: Item) -> f32 {
+fn item_patience(item: Item) -> Duration {
   match item {
-    Item::Coffee => 30.0,
-    Item::ColdDrink => 20.0,
-    Item::HotMeal => 40.0,
-    Item::Sandwich => 20.0,
+    Item::Coffee => Duration::from_secs(30),
+    Item::ColdDrink => Duration::from_secs(20),
+    Item::HotMeal => Duration::from_secs(40),
+    Item::Sandwich => Duration::from_secs(20),
   }
 }
 
@@ -225,9 +225,9 @@ fn direct_desires(
   let item = Item::random(&mut rng);
   let mut patience = item_patience(item);
   if seats.get(seated_in.0).is_ok_and(|seat| seat.class == SeatClass::Business) {
-    patience *= BUSINESS_IMPATIENCE_FACTOR;
+    patience = patience.mul_f32(BUSINESS_IMPATIENCE_FACTOR);
   }
-  commands.entity(entity).insert(Desire::new(item, Duration::from_secs_f32(patience)));
+  commands.entity(entity).insert(Desire::new(item, patience));
 
   // The cooldown only runs once this desire is over.
   passenger.desire_cooldown = desire_cooldown(&mut rng);

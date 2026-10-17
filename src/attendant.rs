@@ -36,10 +36,18 @@ pub struct Attendant {
   activity: Activity,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum WalkProgress {
+  OnTheWay,
+  /// The last waypoint was reached; she is idle and faces the target.
+  Arrived,
+}
+
 impl Attendant {
-  fn walk_on_path(&mut self, delta_secs: f32) -> bool {
+  #[must_use]
+  fn walk_on_path(&mut self, delta_secs: f32) -> WalkProgress {
     let Activity::Walking { path, facing_on_arrival, .. } = &mut self.activity else {
-      return false;
+      return WalkProgress::OnTheWay;
     };
 
     let mut budget = SPEED * delta_secs;
@@ -64,9 +72,9 @@ impl Attendant {
     if path.is_empty() {
       self.facing = *facing_on_arrival;
       self.activity = Activity::Idle;
-      return true;
+      return WalkProgress::Arrived;
     }
-    false
+    WalkProgress::OnTheWay
   }
 }
 
@@ -163,7 +171,7 @@ impl TaskQueue {
 }
 
 #[derive(Component)]
-struct Tray(pub Item);
+struct Tray(Item);
 
 pub struct AttendantPlugin;
 
@@ -270,7 +278,7 @@ fn work(
         attendant.activity = Activity::Idle;
         return;
       }
-      if attendant.walk_on_path(time.delta_secs()) {
+      if attendant.walk_on_path(time.delta_secs()) == WalkProgress::Arrived {
         let task = task_queue.finish_current();
         if let Ok((appliance, filled)) = appliances.get_mut(task.target())
           && let Some(tray_item) = interact_with_appliance(&mut commands, task.target(), appliance, filled) {
@@ -281,22 +289,25 @@ fn work(
   }
 }
 
+type SpriteOutdated = Or<(Changed<Attendant>, Changed<Tray>)>;
+
 fn update_sprite(
   sprites: Res<AttendantSprites>,
-  mut attendants: Query<(&Attendant, &mut Sprite, &mut Anchor, &mut Transform, Has<Tray>), Or<(Changed<Attendant>, Changed<Tray>)>>,
+  mut attendants: Query<(&Attendant, &mut Sprite, &mut Anchor, &mut Transform, Has<Tray>), SpriteOutdated>,
 ) {
   for (attendant, mut sprite, mut anchor, mut transform, has_tray) in &mut attendants {
+    let (front, back) = if has_tray {
+      (&sprites.front_tray, &sprites.back_tray)
+    } else {
+      (&sprites.front_idle, &sprites.back_idle)
+    };
     // The front sprite looks towards the front of the plane, the back sprite
     // towards the back; mirrored they look across the cabin.
-    let (image, flip) = match (attendant.facing, has_tray) {
-      (Facing::Front, false) => (&sprites.front_idle, false),
-      (Facing::Back, false) => (&sprites.back_idle, false),
-      (Facing::Window, false) => (&sprites.back_idle, true),
-      (Facing::Near, false) => (&sprites.front_idle, true),
-      (Facing::Front, true) => (&sprites.front_tray, false),
-      (Facing::Back, true) => (&sprites.back_tray, false),
-      (Facing::Window, true) => (&sprites.back_tray, true),
-      (Facing::Near, true) => (&sprites.front_tray, true),
+    let (image, flip) = match attendant.facing {
+      Facing::Front => (front, false),
+      Facing::Back => (back, false),
+      Facing::Window => (back, true),
+      Facing::Near => (front, true),
     };
     if sprite.image != *image {
       sprite.image = image.clone();

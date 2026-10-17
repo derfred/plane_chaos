@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
@@ -169,8 +171,8 @@ impl PopupProgress {
 /// Shows a popup for a while, then despawns it.
 ///
 /// ```ignore
-/// PopupTimer::for_secs(3.0)               // shown right away
-/// PopupTimer::for_secs(3.0).delayed(0.5)  // hidden for 0.5s first
+/// PopupTimer::showing_for(Duration::from_secs(3))                                    // shown right away
+/// PopupTimer::showing_for(Duration::from_secs(3)).delayed(Duration::from_millis(500))  // hidden for 0.5s first
 /// ```
 #[derive(Component)]
 pub struct PopupTimer {
@@ -179,17 +181,17 @@ pub struct PopupTimer {
 }
 
 impl PopupTimer {
-  /// Shows the popup right away for `secs` seconds.
-  pub fn for_secs(secs: f32) -> Self {
+  /// Shows the popup right away for `duration`.
+  pub fn showing_for(duration: Duration) -> Self {
     Self {
-      delay: Timer::from_seconds(0.0, TimerMode::Once),
-      duration: Timer::from_seconds(secs, TimerMode::Once),
+      delay: Timer::new(Duration::ZERO, TimerMode::Once),
+      duration: Timer::new(duration, TimerMode::Once),
     }
   }
 
-  /// Keeps the popup hidden for `secs` seconds before showing it.
-  pub fn delayed(mut self, secs: f32) -> Self {
-    self.delay = Timer::from_seconds(secs, TimerMode::Once);
+  /// Keeps the popup hidden for `delay` before showing it.
+  pub fn delayed(mut self, delay: Duration) -> Self {
+    self.delay = Timer::new(delay, TimerMode::Once);
     self
   }
 }
