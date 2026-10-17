@@ -4,11 +4,27 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = "0.20.0"
+# Only the 2D and UI parts of Bevy: keeps 3D, glTF and audio out of the binary,
+# which matters most for the web download.
+bevy = { version = "0.20.0", default-features = false, features = ["2d", "ui"] }
 rand = "0.10"
 strum = { version = "0.28", features = ["derive"] }
+
+# rand's getrandom needs to be told to use the browser's crypto API on wasm.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [profile.dev]
 opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+# Smaller binary for the web build: cargo build --profile wasm-release
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+strip = "debuginfo"

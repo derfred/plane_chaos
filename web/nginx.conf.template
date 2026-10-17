@@ -1,0 +1,31 @@
+# Rendered by the nginx image's entrypoint: ${DOWNLOAD_BASE_URL} is filled in
+# from the environment on container start.
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # File names are not content-hashed, so let browsers revalidate with ETags.
+  add_header Cache-Control "no-cache" always;
+
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+  # plane_chaos_bg.wasm.gz and plane_chaos.js.gz are compressed at build time.
+  gzip_static on;
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+
+  location = /index.html {
+    sub_filter_once off;
+    sub_filter "__DOWNLOAD_BASE_URL__" "${DOWNLOAD_BASE_URL}";
+  }
+
+  location / {
+    try_files $uri $uri/ =404;
+  }
+}

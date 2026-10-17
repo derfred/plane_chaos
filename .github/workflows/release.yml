@@ -1,0 +1,138 @@
+# Builds the desktop versions and the website image.
+#
+# Pushing a tag like v0.1.0 publishes a GitHub release with the desktop
+# downloads (the website's download buttons point there) and pushes the
+# website image to ghcr.io. Running it by hand only builds, and keeps the
+# desktop builds as workflow artifacts.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    # The oldest supported runner, so the binary runs on older glibc versions.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - run: cargo build --locked --release
+      - name: Package
+        run: |
+          mkdir -p dist/plane-chaos
+          cp target/release/plane_chaos dist/plane-chaos/
+          cp -r assets dist/plane-chaos/
+          tar -czf dist/plane-chaos-linux-x86_64.tar.gz -C dist plane-chaos
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/plane-chaos-linux-x86_64.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked --release
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/plane-chaos | Out-Null
+          Copy-Item target/release/plane_chaos.exe "dist/plane-chaos/Plane Chaos.exe"
+          Copy-Item -Recurse assets dist/plane-chaos/
+          Compress-Archive -Path dist/plane-chaos -DestinationPath dist/plane-chaos-windows-x86_64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/plane-chaos-windows-x86_64.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked --release --target aarch64-apple-darwin
+      - run: cargo build --locked --release --target x86_64-apple-darwin
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+      - name: Package
+        run: |
+          app="dist/dmg/Plane Chaos.app"
+          mkdir -p "$app/Contents/MacOS"
+          # A universal binary that runs natively on Apple Silicon and Intel.
+          lipo -create -output "$app/Contents/MacOS/plane_chaos" \
+            target/aarch64-apple-darwin/release/plane_chaos \
+            target/x86_64-apple-darwin/release/plane_chaos
+          # Bevy looks for assets next to the executable.
+          cp -r assets "$app/Contents/MacOS/"
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_TYPE" == tag ]] || version="0.0.0"
+          sed "s/__VERSION__/$version/g" build/macos/Info.plist > "$app/Contents/Info.plist"
+          # Ad-hoc signature; Apple Silicon refuses to run unsigned binaries.
+          codesign --force --deep --sign - "$app"
+          # Drag-to-install: the disk image shows the app next to /Applications.
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname "Plane Chaos" -srcfolder dist/dmg -fs HFS+ -format UDZO \
+            dist/plane-chaos-macos-universal.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/plane-chaos-macos-universal.dmg
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.ref_type == 'tag'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/web
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

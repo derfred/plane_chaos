@@ -1,3 +1,6 @@
+// Release builds on Windows open no console window next to the game.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod attendant;
 mod popups;
 mod thought_bubble;
@@ -7,6 +10,7 @@ mod galley;
 mod layout;
 mod hud;
 
+use bevy::asset::AssetMetaCheck;
 use bevy::camera::ScalingMode;
 use bevy::prelude::*;
 
@@ -21,14 +25,21 @@ use hud::HudPlugin;
 fn main() {
   App::new()
     .add_plugins(
-      DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-          title: "Plane Chaos".into(),
-          resolution: (1280, 812).into(),
+      DefaultPlugins
+        .set(WindowPlugin {
+          primary_window: Some(Window {
+            title: "Plane Chaos".into(),
+            resolution: (1280, 812).into(),
+            // On the web: render into the page's canvas and fill its parent.
+            canvas: Some("#plane-chaos".into()),
+            fit_canvas_to_parent: true,
+            prevent_default_event_handling: true,
+            ..default()
+          }),
           ..default()
-        }),
-        ..default()
-      }),
+        })
+        // No .meta files are shipped; skip the lookup (saves 404s on the web).
+        .set(AssetPlugin { meta_check: AssetMetaCheck::Never, ..default() }),
     )
     .insert_resource(ClearColor(Color::srgb(0.53, 0.75, 0.92)))
     .insert_resource(CabinConfig { occupancy: 0.6 })
