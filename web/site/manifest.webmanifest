@@ -1,0 +1,18 @@
+{
+  "name": "Plane Chaos",
+  "short_name": "Plane Chaos",
+  "description": "One flight attendant. A cabin full of passengers. Zero patience.",
+  "id": "/play/",
+  "start_url": "/play/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#87bfeb",
+  "theme_color": "#87bfeb",
+  "categories": ["games"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

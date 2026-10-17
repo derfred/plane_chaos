@@ -8,7 +8,10 @@
   <meta property="og:title" content="Plane Chaos">
   <meta property="og:description" content="One flight attendant. A cabin full of passengers. Zero patience at 30,000 feet.">
   <meta property="og:image" content="img/screenshot.png">
-  <link rel="icon" href="img/icon_desire_coffee.png">
+  <link rel="icon" href="/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#5fa3d9">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -107,7 +110,7 @@
 
     <section class="wrap download" id="download">
       <h2>Take it on board</h2>
-      <p class="sub">Play in the browser right away, or download the desktop version. Both are free.</p>
+      <p class="sub">Play in the browser right away, put it on your phone, or download the desktop version. All free.</p>
       <div class="platforms">
         <a class="platform" href="/play/">
           <strong>Browser</strong>
@@ -129,11 +132,52 @@
           <span>x86_64, X11 or Wayland</span>
           <em>Download .tar.gz</em>
         </a>
+        <a class="platform" href="#mobile">
+          <strong>iPhone &amp; iPad</strong>
+          <span>Add it to your home screen and play full screen</span>
+          <em>How it works</em>
+        </a>
       </div>
       <p class="note">
         The desktop builds aren't code-signed yet. On macOS, right-click the app and
         choose <b>Open</b> the first time. On Windows, choose <b>More info → Run anyway</b>.
       </p>
+    </section>
+
+    <section class="mobile" id="mobile">
+      <div class="wrap mobile-body">
+        <div class="mobile-copy">
+          <h2>On your iPhone or iPad</h2>
+          <p class="sub">
+            No App Store needed. Put Plane Chaos on your home screen and it opens
+            full screen, just like an app.
+          </p>
+          <ol class="steps">
+            <li>
+              <b>Open the game in Safari:</b>
+              <a href="/play/">go to the game page</a>.
+            </li>
+            <li>
+              <b>Tap the Share button</b>
+              <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12M8 7l4-4 4 4M7 11H5v10h14V11h-2"/></svg>
+              in the toolbar. If you can't see it, tap <b>•••</b> first.
+            </li>
+            <li>
+              <b>Choose Add to Home Screen</b> (scroll down the list if needed),
+              then tap <b>Add</b>.
+            </li>
+            <li>
+              <b>Start it from the new icon</b> and hold your device sideways.
+            </li>
+          </ol>
+          <p class="note">
+            Once it has loaded, the game also works offline, so it's ready for
+            your next flight. On Android, open the menu
+            <b>⋮</b> in Chrome and choose <b>Add to Home screen</b> or <b>Install app</b>.
+          </p>
+        </div>
+        <img class="app-icon" src="/icons/icon-512.png" alt="The Plane Chaos home screen icon" width="512" height="512">
+      </div>
     </section>
   </main>
 

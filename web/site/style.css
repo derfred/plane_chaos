@@ -216,7 +216,7 @@ section { padding-block: 72px; }
 .sub { margin: 0 0 32px; }
 .platforms {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 20px;
   text-align: left;
 }
@@ -245,6 +245,55 @@ section { padding-block: 72px; }
 .platform:first-child em { color: var(--ink); }
 .note { margin: 28px auto 0; max-width: 40em; font-size: 15px; color: var(--ink-soft); }
 
+/* ---- iPhone & iPad ---- */
+
+.mobile { background: var(--paper); border-top: var(--border); }
+.mobile-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
+  align-items: center;
+}
+.mobile h2 { text-align: left; margin-bottom: 8px; }
+.mobile .sub { margin-bottom: 24px; }
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  gap: 14px;
+}
+.steps li {
+  position: relative;
+  padding-left: 48px;
+  min-height: 34px;
+}
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -2px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--stripe);
+  font-weight: 700;
+}
+.glyph { width: 20px; height: 20px; vertical-align: -4px; }
+.mobile .note { margin: 24px 0 0; max-width: none; }
+.app-icon {
+  width: 200px;
+  height: 200px;
+  border: var(--border);
+  border-radius: 44px;
+  box-shadow: 0 8px 0 var(--ink);
+}
+
 /* ---- Footer ---- */
 
 footer {
@@ -269,6 +318,8 @@ footer {
   .b3 { right: 4%; }
   .cta .button { flex: 1 1 100%; text-align: center; }
   section { padding-block: 56px; }
+  .mobile-body { grid-template-columns: 1fr; gap: 32px; }
+  .app-icon { order: -1; width: 128px; height: 128px; border-radius: 30px; margin-inline: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

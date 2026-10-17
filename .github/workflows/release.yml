@@ -126,7 +126,6 @@ jobs:
           images: ghcr.io/${{ github.repository }}/web
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
       - uses: docker/build-push-action@v6
         with:
           context: .

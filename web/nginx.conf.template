@@ -25,6 +25,16 @@ server {
     sub_filter "__DOWNLOAD_BASE_URL__" "${DOWNLOAD_BASE_URL}";
   }
 
+  # Always ask for a fresh copy, so a new deploy reaches installed games.
+  location = /play/sw.js {
+    add_header Cache-Control "no-cache, no-store" always;
+  }
+
+  location = /manifest.webmanifest {
+    types { }
+    default_type application/manifest+json;
+  }
+
   location / {
     try_files $uri $uri/ =404;
   }

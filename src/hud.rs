@@ -5,6 +5,7 @@ use strum::IntoEnumIterator;
 
 use crate::attendant::{Task, TaskQueue};
 use crate::galley::Appliance;
+use crate::layout::CABIN_SIZE;
 use crate::passengers::{Mood, Passenger};
 use crate::thought_bubble::mood_image;
 
@@ -29,6 +30,11 @@ const PANEL_SCALE: f32 = 0.6;
 
 const BACKGROUND: Color = Color::srgba(1.0, 1.0, 1.0, 0.85);
 const OUTLINE: Color = Color::srgb_u8(43, 40, 64);
+
+/// Range of the overlay scale. It follows the cabin when the window shrinks
+/// (phones), but stays readable and never grows past its designed size.
+const MIN_UI_SCALE: f32 = 0.6;
+const MAX_UI_SCALE: f32 = 1.0;
 
 /// Text showing how many passengers are in this mood.
 #[derive(Component)]
@@ -58,7 +64,7 @@ impl Plugin for HudPlugin {
   fn build(&self, app: &mut App) {
     app
       .add_systems(Startup, (spawn_score, spawn_task_queue))
-      .add_systems(Update, (update_counts, update_task_queue));
+      .add_systems(Update, (scale_to_window, update_counts, update_task_queue));
   }
 }
 
@@ -205,4 +211,12 @@ fn task_icon(task: Task, icons: &TaskIcons, appliances: &Query<&Appliance>) -> H
     Task::Attend(_) | Task::Walk(_) => &icons.walk,
   };
   icon.clone()
+}
+
+fn scale_to_window(window: Single<&Window, Changed<Window>>, mut ui_scale: ResMut<UiScale>) {
+  let fit = (window.width() / CABIN_SIZE.x).min(window.height() / CABIN_SIZE.y);
+  let scale = fit.clamp(MIN_UI_SCALE, MAX_UI_SCALE);
+  if ui_scale.0 != scale {
+    ui_scale.0 = scale;
+  }
 }

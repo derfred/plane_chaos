@@ -52,6 +52,18 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
   sed -i "s/__WASM_SIZE__/$(stat -c %s /out/play/plane_chaos_bg.wasm)/" /out/play/index.html; \
   gzip -k -9 /out/play/plane_chaos_bg.wasm /out/play/plane_chaos.js
 
+COPY web/site/manifest.webmanifest /out/site/manifest.webmanifest
+COPY web/site/icons /out/site/icons
+RUN set -eu; \
+  cd /out/play; \
+  files=$(find . ../site -type f ! -name '*.gz' ! -name sw.js ! -path ./index.html \
+    | sed 's|^\./||; s|^\.\./site/|../|' | sort); \
+  build_id=$( (cat index.html; for f in $files; do cat "$(echo "$f" | sed 's|^\.\./|../site/|')"; done) \
+    | sha256sum | cut -c1-16); \
+  precache=$(printf '"%s",' ./ $files | sed 's/,$//'); \
+  sed -i "s|__BUILD_ID__|$build_id|; s|__PRECACHE__|[$precache]|" sw.js; \
+  echo "service worker build $build_id: $(echo $files | wc -w) files + page"
+
 # ---- Serve it ----
 FROM nginxinc/nginx-unprivileged:1.29-alpine
 
