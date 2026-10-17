@@ -37,7 +37,7 @@ jobs:
           tar -czf dist/plane-chaos-linux-x86_64.tar.gz -C dist plane-chaos
       - uses: actions/upload-artifact@v4
         with:
-          name: linux
+          name: desktop-linux
           path: dist/plane-chaos-linux-x86_64.tar.gz
 
   windows:
@@ -56,7 +56,7 @@ jobs:
           Compress-Archive -Path dist/plane-chaos -DestinationPath dist/plane-chaos-windows-x86_64.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
+          name: desktop-windows
           path: dist/plane-chaos-windows-x86_64.zip
 
   macos:
@@ -92,7 +92,7 @@ jobs:
             dist/plane-chaos-macos-universal.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
+          name: desktop-macos
           path: dist/plane-chaos-macos-universal.dmg
 
   release:
@@ -102,6 +102,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          # Only the desktop builds; the Docker step uploads a build record too.
+          pattern: desktop-*
           path: dist
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
