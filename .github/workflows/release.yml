@@ -1,14 +1,15 @@
 # Builds the desktop versions and the website image.
 #
-# Pushing a tag like v0.1.0 publishes a GitHub release with the desktop
-# downloads (the website's download buttons point there) and pushes the
-# website image to ghcr.io. Running it by hand only builds, and keeps the
-# desktop builds as workflow artifacts.
+# Pushing a version tag like v0.1.0 publishes a GitHub release with the
+# desktop downloads (the website's download buttons point there) and pushes
+# the website image to ghcr.io as 0.1.0 and latest. Pre-release tags like
+# v0.2.0-rc.1 publish too, but leave latest alone. Running it by hand only
+# builds, and keeps the desktop builds as workflow artifacts.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
   workflow_dispatch:
 
 permissions:
