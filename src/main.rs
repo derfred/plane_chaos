@@ -9,6 +9,7 @@ mod cabin;
 mod galley;
 mod layout;
 mod hud;
+mod feedback;
 
 use bevy::asset::AssetMetaCheck;
 use bevy::camera::ScalingMode;
@@ -21,6 +22,7 @@ use cabin::{CabinConfig, CabinPlugin};
 use galley::GalleyPlugin;
 use passengers::PassengersPlugin;
 use hud::HudPlugin;
+use feedback::FeedbackPlugin;
 
 fn main() {
   App::new()
@@ -43,7 +45,7 @@ fn main() {
     )
     .insert_resource(ClearColor(Color::srgb(0.53, 0.75, 0.92)))
     .insert_resource(CabinConfig { occupancy: 0.6 })
-    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin, PassengersPlugin, ThoughtBubblePlugin, PopupsPlugin, HudPlugin))
+    .add_plugins((CabinPlugin, GalleyPlugin, AttendantPlugin, PassengersPlugin, ThoughtBubblePlugin, PopupsPlugin, HudPlugin, FeedbackPlugin))
     .add_systems(Startup, spawn_camera)
     .run();
 }

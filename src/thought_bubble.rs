@@ -7,7 +7,7 @@ use crate::passengers::{Item, Mood, MoodChanged, Desire};
 
 /// Where the bubble's tail points to, in passenger sprite pixels relative to
 /// the passenger's feet: just above the top right of the head.
-const HEAD_OFFSET: Vec2 = Vec2::new(11.0, 165.0);
+pub const HEAD_OFFSET: Vec2 = Vec2::new(11.0, 165.0);
 
 const SHOW_DELAY: Duration = Duration::from_millis(500);
 const SHOW_TIME: Duration = Duration::from_secs(3);

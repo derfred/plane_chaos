@@ -119,6 +119,9 @@ impl Mood {
 /// Input from the rest of the game: something was handed to this passenger.
 #[derive(EntityEvent)] pub struct Serve { pub entity: Entity, pub item: Item }
 
+/// The served item was not what the passenger wanted; it is dropped.
+#[derive(EntityEvent)] pub struct ServeRejected { pub entity: Entity, pub item: Item }
+
 fn item_patience(item: Item) -> Duration {
   match item {
     Item::Coffee => Duration::from_secs(30),
@@ -137,6 +140,7 @@ impl Plugin for PassengersPlugin {
       .add_systems(Startup, spawn_passengers.after(SpawnCabin))
       // Expired desires are removed first, so their slot is free for the director.
       .add_systems(Update, (tick_patience, cool_down_passengers, direct_desires).chain())
+      .add_observer(receive_serve)
       .add_observer(improve_mood)
       .add_observer(worsen_mood);
   }
@@ -232,6 +236,16 @@ fn direct_desires(
   // The cooldown only runs once this desire is over.
   passenger.desire_cooldown = desire_cooldown(&mut rng);
   director.next = desire_interval(&mut rng);
+}
+
+fn receive_serve(serve: On<Serve>, mut commands: Commands, desires: Query<&Desire>) {
+  let (entity, item) = (serve.entity, serve.item);
+  if desires.get(entity).is_ok_and(|desire| desire.item == item) {
+    commands.entity(entity).remove::<Desire>();
+    commands.trigger(DesireSatisfied { entity, item });
+  } else {
+    commands.trigger(ServeRejected { entity, item });
+  }
 }
 
 fn improve_mood(satisfied: On<DesireSatisfied>, mut commands: Commands, moods: Query<&Mood>) {

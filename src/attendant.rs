@@ -6,8 +6,8 @@ use bevy::prelude::*;
 use bevy::sprite::Anchor;
 
 use crate::cabin::Occupant;
-use crate::passengers::{Passenger, Item};
-use crate::galley::{Appliance, Filled, interact_with_appliance};
+use crate::passengers::{Passenger, Item, Serve};
+use crate::galley::{Appliance, Filled, StartAppliance, interact_with_appliance};
 use crate::layout::{self, Facing, SPRITE_SCALE, WalkTarget};
 
 /// Walking speed in floor units per second.
@@ -257,12 +257,12 @@ fn work(
   time: Res<Time>,
   mut commands: Commands,
   walk_targets: Query<&WalkTarget>,
-  attendant: Single<(Entity, &mut Attendant)>,
+  attendant: Single<(Entity, &mut Attendant, Option<&Tray>)>,
   mut task_queue: Single<&mut TaskQueue>,
   mut appliances: Query<(&Appliance, Option<&mut Filled>)>,
 ) {
   // Nothing to do: return before the mutable deref, so she isn't marked as changed.
-  let (attendant_entity, mut attendant) = attendant.into_inner();
+  let (attendant_entity, mut attendant, tray) = attendant.into_inner();
   if matches!(attendant.activity, Activity::Idle) && task_queue.current().is_none() {
     return;
   }
@@ -279,11 +279,22 @@ fn work(
         return;
       }
       if attendant.walk_on_path(time.delta_secs()) == WalkProgress::Arrived {
-        let task = task_queue.finish_current();
-        if let Ok((appliance, filled)) = appliances.get_mut(task.target())
-          && let Some(tray_item) = interact_with_appliance(&mut commands, task.target(), appliance, filled) {
-            commands.entity(attendant_entity).insert(Tray(tray_item));
+        match (task_queue.finish_current(), tray) {
+          // Her hands are full: she can still switch on an empty appliance.
+          (Task::Use(target), Some(_)) => commands.trigger(StartAppliance(target)),
+          (Task::Use(target), None) => {
+            if let Ok((appliance, filled)) = appliances.get_mut(target)
+              && let Some(tray_item) = interact_with_appliance(&mut commands, target, appliance, filled) {
+                commands.entity(attendant_entity).insert(Tray(tray_item));
+              }
           }
+          // Whether the passenger takes it or not, the tray is empty afterwards.
+          (Task::Attend(passenger), Some(&Tray(item))) => {
+            commands.trigger(Serve { entity: passenger, item });
+            commands.entity(attendant_entity).remove::<Tray>();
+          }
+          (Task::Attend(_) | Task::Walk(_), _) => {}
+        }
       }
     }
   }
